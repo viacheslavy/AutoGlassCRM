@@ -18,7 +18,6 @@ class _LoginViewState extends State<LoginView> {
   BuildContext _scaffoldContext;
   TextEditingController _emailController = new TextEditingController(text: "");
   TextEditingController _pwController = new TextEditingController(text: "");
-  TextEditingController _domainController = new TextEditingController(text: "");
   final FocusNode myFocusNode = FocusNode();
   final scaffoldKey = new GlobalKey<ScaffoldState>();
   bool isAuthenticating = false;
@@ -27,15 +26,31 @@ class _LoginViewState extends State<LoginView> {
   @override
   void initState() {
     super.initState();
-    _domainController.text = Global.domainPrefix;
   }
 
   void doLogin() async {
-    var response = await AuthenticationService.authenticate(_domainController.text.trim(), _emailController.text.trim(), _pwController.text.trim());
+    var email = _emailController.text.trim();
+    var password = _pwController.text.trim();
+    var urlPrefix;
+    urlPrefix = await AuthenticationService.getPrefixByEmail(email);
+    if ( urlPrefix == null ){
+      var err = "We're sorry, the email you entered is not associated with any AutoGlassCRM account.";
+      final snackBar = SnackBar(
+        content: Text(err),
+      );
+      Scaffold.of(_scaffoldContext).showSnackBar(snackBar);
+      isAuthenticating = false;
+      setState(() {});
+
+      return;
+    }
+
+
+    var response = await AuthenticationService.authenticate(urlPrefix, email, password);
     if (response != null && response.token != null && (response.error == null || response.error == "") ) {
       Global.currentUserName = _emailController.text.trim();
       Global.currentPassword = _pwController.text.trim();
-      Global.domainPrefix = _domainController.text.trim();
+      Global.domainPrefix = urlPrefix;
       Global.userID = response.id;
       Global.userFirstName = response.first_name;
       Global.userLastName =response.last_name;
@@ -43,6 +58,7 @@ class _LoginViewState extends State<LoginView> {
       Global.userAccess = response.access;
       Global.vindecoderAuth = response.vindecoderAuth;
       Global.vindecoderOnly = response.vindecoderOnly;
+      Global.country = response.country;
       Global.isRemeberMe = bRememberMe;
       Global.notificationStatus = "1";
       Global.saveSettings();
@@ -124,72 +140,6 @@ class _LoginViewState extends State<LoginView> {
                   margin: const EdgeInsets.only(top: 20.0),
                 ),
                 SizedBox(height: 24.0),
-
-                Container(
-                   decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0),
-                   ),
-                   margin: const EdgeInsets.symmetric(
-                       vertical: 0.0, horizontal: 20.0),
-                   child:Padding(
-                       padding: EdgeInsets.only(
-                           left: 5, right: 29, top: 10, bottom: 10),
-                       child: Text(
-                         "Domain",
-                         style: TextStyle(
-                           color: Color(0xFFA4C6EB),
-                           fontSize: 16,
-                         ),
-                       ),
-                   )
-                ),
-
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0),
-                  ),
-                  margin: const EdgeInsets.only(top:0.0, bottom: 0.0, left:25.0, right: 10.0),
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        flex: 7,
-                        child: Container(
-                          child: TextField(
-                            autocorrect: false,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                            keyboardType: TextInputType.text,
-                            controller: _domainController,
-                            textAlign: TextAlign.right,
-                            decoration: InputDecoration(
-                              border: InputBorder.none,
-                              hintText: 'Enter prefix',
-                              hintStyle: TextStyle(color: Colors.grey),
-                            ),
-                            onSubmitted: (newValue) {
-                              FocusScope.of(context).requestFocus(myFocusNode);
-                            },
-                          ),
-                        )
-                      ),
-                      Expanded(
-                        flex: 8,
-                        child: Text(".autoglasscrm.com", style: TextStyle(color: Colors.white, fontSize: 14),)
-                      ),
-
-                    ]
-                  )
-                ),
-
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 25),
-                  child: Divider(
-                    color: Colors.grey,
-                  ),
-                ),
-
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0),

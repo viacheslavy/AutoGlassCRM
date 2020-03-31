@@ -11,6 +11,7 @@ import 'package:auto_glass_crm/classes/gallery_item.dart';
 import 'package:auto_glass_crm/models/part_note.dart';
 import 'package:auto_glass_crm/views/gallery_photo_view_wrapper.dart';
 import 'package:auto_glass_crm/views/youtube_video_view.dart';
+import 'package:auto_glass_crm/views/vin_detection_page.dart';
 
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
@@ -46,6 +47,7 @@ class _VindecoderViewState extends State<VindecoderView> {
   bool _dataLoaded = false;
   bool  _isLoading = false;
   bool _hasError = false;
+  bool _showExtraOption = false;
 
   Color color_bg = Color(0xFFCCCCCC);
   VindecoderData _vindecoder = new VindecoderData();
@@ -119,9 +121,6 @@ class _VindecoderViewState extends State<VindecoderView> {
     /* Vent Option */
     ventGlassOptions.add(JobGlassOptionDropDownItem("1", "Front Left"));
     ventGlassOptions.add(JobGlassOptionDropDownItem("2", "Front Right"));
-
-
-    //loadData("JF2SJAGC4HH511141");
   }
 
   clickedSearch(){
@@ -187,6 +186,7 @@ class _VindecoderViewState extends State<VindecoderView> {
     _isSentHelpRequest = false;
     _errorMsg = "";
     _selectedPartNum = "";
+    _showExtraOption = false;
 
     setState(() {});
 
@@ -211,7 +211,8 @@ class _VindecoderViewState extends State<VindecoderView> {
       }
       else if ( response.containsKey("error") ) {
         _vindecoder = VindecoderData.fromJson(response);
-        topAlertText = response["error"];
+        _errorMsg = response["error"];
+        _vindecoder = null;
       }
       else{
         _vindecoder = VindecoderData.fromJson(response);
@@ -219,7 +220,7 @@ class _VindecoderViewState extends State<VindecoderView> {
         if ( _vindecoder == null ){
           _errorMsg = "Error has occurred";
         }
-        else if ( _vindecoder.squishvin == null ){
+        else if ( _vindecoder.squishvin == null && (_vindecoder.parts == null || _vindecoder.parts.length == 0 ) ){
           _vindecoder = null;
           _errorMsg = "Your search returned no results. Please search again by VIN. If you were trying to search by VIN, your entry was invalid, so please double-check your VIN's numbers and letters so we can get your matching results!";
         }
@@ -231,49 +232,13 @@ class _VindecoderViewState extends State<VindecoderView> {
       _dataLoaded = true;
       _searchKey = s;
 
-      for (var i = 0; i < _vindecoder.parts.length; i++) {
-        var part = _vindecoder.parts[i];
-
-        if ( (part.photo_count + part.video_count + part.note_count) > 0 ){
-          var response = await UploadService.getPartData( part.part_number );
-
-          if ( response != null ){
-            try{
-              var jsonResponse = json.decode(response);
-              if ( jsonResponse.containsKey("success") && jsonResponse["success"] == 0 ){
-              }
-              else{
-                if ( jsonResponse.containsKey("photos") ) {
-                  for (var i = 0; i < jsonResponse["photos"].length; i++) {
-                    var photo = jsonResponse["photos"][i];
-                    part.photos.add(GalleryItem(
-                        id: photo["id"],
-                        isVideo: false,
-                        resource: Global.amazon_prefix + "/" + photo["url"]
-                    ));
-                  }
-                }
-
-                if ( jsonResponse.containsKey("notes")) {
-                  for (var i = 0; i < jsonResponse["notes"].length; i++) {
-                    PartNote note = PartNote.fromJson(jsonResponse["notes"][i]);
-                    part.notes.add(note);
-                  }
-                }
-
-
-                if ( jsonResponse.containsKey("videos") && jsonResponse["videos"].length > 0 ) {
-                  part.video = jsonResponse["videos"][0]["url"];
-                }
-              }
-
-            }catch (e) {
-              _hasError = true;
-            }
-          }
-        }
+      if ( VindecoderService.checkMake(_vindecoder.make) && type == "4" ){
+        _showExtraOption = true;
+        _selectedJobType = "23";
+        _selectedJobOption = "1";
+        _otherOption = "";
+        _otherOptionController.text = "";
       }
-
 
       bool showMessage = false;
       var windShieldCount = 0;
@@ -288,7 +253,13 @@ class _VindecoderViewState extends State<VindecoderView> {
 
 
       if ( showMessage && topAlertText == ""){
-        topAlertText = "This VIN number has multiple windshield options, ask customer which trim they have, or description of windshield";
+        if ( _vindecoder.squishvin == null && (_vindecoder.parts != null && _vindecoder.parts.length > 0 ) ) {
+
+        }
+        else{
+          topAlertText =
+          "This VIN number has multiple windshield options, ask customer which trim they have, or description of windshield";
+        }
       }
 
       _hasError = false;
@@ -1233,10 +1204,10 @@ class _VindecoderViewState extends State<VindecoderView> {
           if ( part.notes != null ){
             for(var j=0; j<part.notes.length;j++){
               if ( notes == "" ){
-                notes = part.notes[j].text;
+                notes = part.notes[j];
               }
               else{
-                notes += "\n\n" + part.notes[j].text;
+                notes += "\n\n" + part.notes[j];
               }
             }
           }
@@ -1271,8 +1242,8 @@ class _VindecoderViewState extends State<VindecoderView> {
             }
           }
 
-          if ( part.video != null ){
-            video_url = part.video;
+          if ( part.videos != null && part.videos.length > 0 ){
+            video_url = part.videos[0];
             var videoID = path.basename(video_url);
             videoThumbnailUrl = "https://img.youtube.com/vi/" + videoID.toString() + "/0.jpg";
           }
@@ -1575,7 +1546,8 @@ class _VindecoderViewState extends State<VindecoderView> {
 
 
 
-        for (var i = 0; i < _vindecoder.parts.length; i++){
+        for (var i = 0; i < _vindecoder.parts.length; i++)
+        {
           var part = _vindecoder.parts[i];
           if ( part.part_number != null ){
             String partNum = part.part_number.trim();
@@ -1632,17 +1604,17 @@ class _VindecoderViewState extends State<VindecoderView> {
               if ( part.notes != null ){
                 for(var j=0; j<part.notes.length;j++){
                   if ( notes == "" ){
-                    notes = part.notes[j].text;
+                    notes = part.notes[j];
                   }
                   else{
-                    notes += "\n\n" + part.notes[j].text;
+                    notes += "\n\n" + part.notes[j];
                   }
                 }
               }
 
 
-              if ( part.video != null ){
-                video_url = part.video;
+              if ( part.videos != null && part.videos.length > 0 ){
+                video_url = part.videos[0];
                 var videoID = path.basename(video_url);
                 videoThumbnailUrl = "https://img.youtube.com/vi/" + videoID.toString() + "/0.jpg";
               }
@@ -2130,6 +2102,7 @@ class _VindecoderViewState extends State<VindecoderView> {
     }
 
 
+
     trimsWidget.add(
       Container(
         padding: EdgeInsets.only(left: 10, right: 10, top: 20.0, bottom: 20.0),
@@ -2142,76 +2115,119 @@ class _VindecoderViewState extends State<VindecoderView> {
       )
     );
 
-    trimsWidget.add(
-      Container(
-        padding: EdgeInsets.only(top: 10, bottom: 0, left: 10, right: 10),
-        child: Container(
-          padding: EdgeInsets.all(10),
-          color: Color(0xffdae2ed),
-          child: Column(
-            children: <Widget>[
-              Center(
-                  child: Text(
-                      "aggregate" == "aggregate"?
-                      "These parts have been used for AutoGlassCRM jobs on vehicles of this year, make, model, and body. The correct part may vary depending on trim or other features. If you need help narrowing it down, click the button below for assistance from Vindecoder staff!":
-                      "These parts have been verified as matching vehicles of this year, make, model, and body. The correct part may vary depending on trim or other features. If you need help narrowing it down, click the button below for assistance from Vindecoder staff!",
-                      style: TextStyle(
-                      )
-                  )
-              ),
-              SizedBox(height: 10,),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: OutlineButton(
-                        color: Colors.white,
-                        borderSide: BorderSide(
-                            color: Color(0xFF027BFF)
-                        ),
-                        child: Padding(
-                            padding: EdgeInsets.all(5),
+
+    if ( _vindecoder.squishvin == null && (_vindecoder.parts != null && _vindecoder.parts.length > 0 ) ){
+
+    }
+    else {
+      if (_vindecoder != null &&
+          (_vindecoder.error == null || _vindecoder.error == "")) {
+        Container _extraJobOption = Container();
+
+        if (_showExtraOption) {
+          List<DropdownMenuItem> _jobOptionMenuItems = new List();
+          for (var i = 0; i < heavyGlassOptions.length; i++) {
+            _jobOptionMenuItems.add(DropdownMenuItem(child: new Text(
+              heavyGlassOptions[i].text, textAlign: TextAlign.center,),
+                value: heavyGlassOptions[i].id));
+          }
+          _extraJobOption = Container(
+            padding: const EdgeInsets.only(left: 0.0, right: 0.0, bottom: 5.0),
+            child: DropdownButton(
+                isDense: true,
+                isExpanded: true,
+                value: _selectedJobOption,
+                items: _jobOptionMenuItems,
+                onChanged: (newValue) {
+                  setState(() {
+                    _selectedJobOption = newValue;
+                    _otherOptionController.text = "";
+                  });
+                }
+            ),
+          );
+        }
+
+
+        trimsWidget.add(
+            Container(
+                padding: EdgeInsets.only(
+                    top: 10, bottom: 0, left: 10, right: 10),
+                child: Container(
+                    padding: EdgeInsets.all(10),
+                    color: Color(0xffdae2ed),
+                    child: Column(
+                      children: <Widget>[
+                        Center(
                             child: Text(
-                              _isSendingHelpRequest?
-                              "Sending...":
-                              "Tell me the exact part number",
-                              style: TextStyle(
-                                color: Color(0xFF027BFF),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
+                                "aggregate" == "aggregate"
+                                    ?
+                                "These parts have been used for AutoGlassCRM jobs on vehicles of this year, make, model, and body. The correct part may vary depending on trim or other features. If you need help narrowing it down, click the button below for assistance from Vindecoder staff!"
+                                    :
+                                "These parts have been verified as matching vehicles of this year, make, model, and body. The correct part may vary depending on trim or other features. If you need help narrowing it down, click the button below for assistance from Vindecoder staff!",
+                                style: TextStyle(
+                                )
                             )
                         ),
-                        onPressed: () {
-                          sendHelpRequest();
-                        }),
-                  ),
-                ],
-              ),
-            ],
-          )
-        )
-      )
+                        SizedBox(height: 10,),
+                        _extraJobOption,
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: OutlineButton(
+                                  color: Colors.white,
+                                  borderSide: BorderSide(
+                                      color: Color(0xFF027BFF)
+                                  ),
+                                  child: Padding(
+                                      padding: EdgeInsets.all(5),
+                                      child: Text(
+                                        _isSendingHelpRequest ?
+                                        "Sending..." :
+                                        "Tell me the exact part number",
+                                        style: TextStyle(
+                                          color: Color(0xFF027BFF),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      )
+                                  ),
+                                  onPressed: () {
+                                    sendHelpRequest();
+                                  }),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                )
+            )
 
-    );
+        );
+      }
 
 
-
-    if ( _isSentHelpRequest == true ) {
-      trimsWidget.add(
-          Container(
-              padding: EdgeInsets.only(left: 10.0, right: 10.0, bottom: 10.0),
-              child: Center(
-                  child: Text(
-                      _hasHelpRequestError==true?
-                      "We're sorry.  We couldn't send your request.  Please try again!":
-                      "Request submitted! Once we've checked on this VIN search for you, you will be notified by push notification (if you've enabled them) or email.",
-                      style: TextStyle(
-                      )
-                  )
-              )
-          )
-      );
+      if (_isSentHelpRequest == true) {
+        trimsWidget.add(
+            Container(
+                padding: EdgeInsets.only(left: 10.0, right: 10.0, bottom: 10.0),
+                child: Center(
+                    child: Text(
+                        _hasHelpRequestError == true
+                            ?
+                        "We're sorry.  We couldn't send your request.  Please try again!"
+                            :
+                        "Request submitted! Once we've checked on this VIN search for you, you will be notified by push notification (if you've enabled them) or email.",
+                        style: TextStyle(
+                        )
+                    )
+                )
+            )
+        );
+      }
     }
+
+
 
     trimsWidget.add(
         Container(
@@ -2294,334 +2310,36 @@ class _VindecoderViewState extends State<VindecoderView> {
               ),
             );
 
-            widgets.add(
-              Container(
-                  padding: EdgeInsets.only(top:10, bottom: 0, left:10, right:10),
-                  child:Center(
-                      child:Text( "Vehicle Data for " + _searchKey,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold
-                        ),
-                      )
-                  )
-              ),
-            );
+            if ( _vindecoder.squishvin == null && (_vindecoder.parts != null && _vindecoder.parts.length > 0 ) ){
 
-            if ( Device.get().isTablet ) {
-              List<Widget> headerWidget = new List();
-              headerWidget.add(
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      Expanded(
-                        flex: 2,
-                        child: Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: color_bg,
-                              border: Border(
-                                top: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                left: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                right: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                bottom: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                              ),
-                            ),
-                            child: Center(
-                              child: Text('Year',
-                                textAlign: TextAlign.start,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            )
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: color_bg,
-                              border: Border(
-                                top: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                left: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                right: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                bottom: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                              ),
-                            ),
-                            child: Center(
-                              child: Text('Make',
-                                textAlign: TextAlign.start,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            )
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: color_bg,
-                              border: Border(
-                                top: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                left: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                right: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                bottom: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                              ),
-                            ),
-                            child: Center(
-                              child: Text('Model',
-                                textAlign: TextAlign.start,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            )
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: color_bg,
-                              border: Border(
-                                top: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                left: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                right: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                bottom: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                              ),
-                            ),
-                            child: Center(
-                              child: Text('Body',
-                                textAlign: TextAlign.start,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            )
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: color_bg,
-                              border: Border(
-                                top: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                left: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                right: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                                bottom: BorderSide(width: 1.0,
-                                    color: Colors.black54),
-                              ),
-                            ),
-                            child: Center(
-                              child: Text('Trim',
-                                textAlign: TextAlign.start,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            )
-                        ),
-                      ),
-                    ]
-                  )
-                )
-              );
-
-              headerWidget.add(
-                  IntrinsicHeight(
-                      child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(width: 0.0,
-                                          color: Colors.black54),
-                                      left: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      right: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      bottom: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(_vindecoder.year != null? _vindecoder.year:"",
-                                      textAlign: TextAlign.start,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  )
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(width: 0.0,
-                                          color: Colors.black54),
-                                      left: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      right: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      bottom: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(_vindecoder.make != null? _vindecoder.make:"",
-                                      textAlign: TextAlign.start,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  )
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(width: 0.0,
-                                          color: Colors.black54),
-                                      left: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      right: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      bottom: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(_vindecoder.model != null? _vindecoder.model:"",
-                                      textAlign: TextAlign.start,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  )
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(width: 0.0,
-                                          color: Colors.black54),
-                                      left: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      right: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      bottom: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(_vindecoder.body != null? _vindecoder.body:"",
-                                      textAlign: TextAlign.start,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  )
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(width: 0.0,
-                                          color: Colors.black54),
-                                      left: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      right: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                      bottom: BorderSide(width: 1.0,
-                                          color: Colors.black54),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text('',
-                                      textAlign: TextAlign.start,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  )
-                              ),
-                            ),
-                          ]
-                      )
-                  )
-              );
-
+            }else {
               widgets.add(
-                  Container(
-                      child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                          child: Column(
-                              children: headerWidget
-                          )
-                      )
-                  )
+                Container(
+                    padding: EdgeInsets.only(
+                        top: 10, bottom: 0, left: 10, right: 10),
+                    child: Center(
+                        child: Text("Vehicle Data for " + _searchKey,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold
+                          ),
+                        )
+                    )
+                ),
               );
 
-            }
-            else{
-              widgets.add(
-                  Container(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                      child: Column(
-                        children: <Widget>[
-                          // Year
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                Expanded(
-                                  flex: 1,
-                                  child: Container(
+              if (Device
+                  .get()
+                  .isTablet) {
+                List<Widget> headerWidget = new List();
+                headerWidget.add(
+                    IntrinsicHeight(
+                        child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              Expanded(
+                                flex: 2,
+                                child: Container(
                                     padding: EdgeInsets.symmetric(
                                         horizontal: 5, vertical: 5),
                                     decoration: BoxDecoration(
@@ -2633,274 +2351,605 @@ class _VindecoderViewState extends State<VindecoderView> {
                                             color: Colors.black54),
                                         right: BorderSide(width: 1.0,
                                             color: Colors.black54),
-                                        bottom: BorderSide(width: 0.0,
+                                        bottom: BorderSide(width: 1.0,
                                             color: Colors.black54),
                                       ),
                                     ),
-                                    child: Text('Year',
+                                    child: Center(
+                                      child: Text('Year',
                                         textAlign: TextAlign.start,
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold),
-
-                                      )
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          top: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          right: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          bottom: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                        ),
                                       ),
-                                      child: Text(
-                                        _vindecoder.year != null? _vindecoder.year: "",
-                                        textAlign: TextAlign.start,
-                                      )
-                                  ),
+                                    )
                                 ),
-                              ],
-                            ),
-                          ),
-
-
-                          // Make
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                Expanded(
-                                  child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        color: color_bg,
-                                        border: Border(
-                                          top: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                          left: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          right: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          bottom: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                        ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: color_bg,
+                                      border: Border(
+                                        top: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        left: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        right: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        bottom: BorderSide(width: 1.0,
+                                            color: Colors.black54),
                                       ),
+                                    ),
+                                    child: Center(
                                       child: Text('Make',
                                         textAlign: TextAlign.start,
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold),
-
-                                      )
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          top: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                          right: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          bottom: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                        ),
                                       ),
-                                      child: Text(
-                                        _vindecoder.make != null? _vindecoder.make: "",
-                                        textAlign: TextAlign.start,
-                                      )
-                                  ),
+                                    )
                                 ),
-                              ],
-                            ),
-                          ),
-
-
-                          //Model
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                Expanded(
-                                  child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        color: color_bg,
-                                        border: Border(
-                                          top: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                          left: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          right: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          bottom: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                        ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: color_bg,
+                                      border: Border(
+                                        top: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        left: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        right: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        bottom: BorderSide(width: 1.0,
+                                            color: Colors.black54),
                                       ),
+                                    ),
+                                    child: Center(
                                       child: Text('Model',
                                         textAlign: TextAlign.start,
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold),
-
-                                      )
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          top: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                          right: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          bottom: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                        ),
                                       ),
-                                      child: Text(
-                                        _vindecoder.model != null? _vindecoder.model: "",
-                                        textAlign: TextAlign.start,
-                                      )
-                                  ),
+                                    )
                                 ),
-                              ],
-                            ),
-                          ),
-
-
-                          // body
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                Expanded(
-                                  child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        color: color_bg,
-                                        border: Border(
-                                          top: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                          left: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          right: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          bottom: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                        ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: color_bg,
+                                      border: Border(
+                                        top: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        left: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        right: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        bottom: BorderSide(width: 1.0,
+                                            color: Colors.black54),
                                       ),
+                                    ),
+                                    child: Center(
                                       child: Text('Body',
                                         textAlign: TextAlign.start,
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold),
-
-                                      )
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          top: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                          right: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          bottom: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                        ),
                                       ),
-                                      child: Text(
-                                        _vindecoder.body != null? _vindecoder.body: "",
-                                        textAlign: TextAlign.start,
-                                      )
-                                  ),
+                                    )
                                 ),
-                              ],
-                            ),
-                          ),
-
-
-                          // Trim
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                Expanded(
-                                  child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        color: color_bg,
-                                        border: Border(
-                                          top: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                          left: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          right: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          bottom: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                        ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: color_bg,
+                                      border: Border(
+                                        top: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        left: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        right: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        bottom: BorderSide(width: 1.0,
+                                            color: Colors.black54),
                                       ),
+                                    ),
+                                    child: Center(
                                       child: Text('Trim',
                                         textAlign: TextAlign.start,
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold),
-
-                                      )
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          top: BorderSide(width: 0.0,
-                                              color: Colors.black54),
-                                          right: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                          bottom: BorderSide(width: 1.0,
-                                              color: Colors.black54),
-                                        ),
                                       ),
-                                      child: Text(
-                                        "",
-                                        textAlign: TextAlign.start,
-                                      )
-                                  ),
+                                    )
                                 ),
-                              ],
-                            ),
-                          ),
-
-
-
-                        ]
-                      )
+                              ),
+                            ]
+                        )
                     )
-                  )
-              );
+                );
+
+                headerWidget.add(
+                    IntrinsicHeight(
+                        child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        top: BorderSide(width: 0.0,
+                                            color: Colors.black54),
+                                        left: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        right: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        bottom: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _vindecoder.year != null ? _vindecoder
+                                            .year : "",
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                    )
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        top: BorderSide(width: 0.0,
+                                            color: Colors.black54),
+                                        left: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        right: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        bottom: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _vindecoder.make != null ? _vindecoder
+                                            .make : "",
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                    )
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        top: BorderSide(width: 0.0,
+                                            color: Colors.black54),
+                                        left: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        right: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        bottom: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _vindecoder.model != null ? _vindecoder
+                                            .model : "",
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                    )
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        top: BorderSide(width: 0.0,
+                                            color: Colors.black54),
+                                        left: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        right: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        bottom: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _vindecoder.body != null ? _vindecoder
+                                            .body : "",
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                    )
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        top: BorderSide(width: 0.0,
+                                            color: Colors.black54),
+                                        left: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        right: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                        bottom: BorderSide(width: 1.0,
+                                            color: Colors.black54),
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text('',
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                    )
+                                ),
+                              ),
+                            ]
+                        )
+                    )
+                );
+
+                widgets.add(
+                    Container(
+                        child: Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 10),
+                            child: Column(
+                                children: headerWidget
+                            )
+                        )
+                    )
+                );
+              }
+              else {
+                widgets.add(
+                    Container(
+                        child: Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 10),
+                            child: Column(
+                                children: <Widget>[
+                                  // Year
+                                  IntrinsicHeight(
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment
+                                          .stretch,
+                                      children: <Widget>[
+                                        Expanded(
+                                          flex: 1,
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                color: color_bg,
+                                                border: Border(
+                                                  top: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  left: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text('Year',
+                                                textAlign: TextAlign.start,
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight
+                                                        .bold),
+
+                                              )
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                border: Border(
+                                                  top: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                _vindecoder.year != null
+                                                    ? _vindecoder.year
+                                                    : "",
+                                                textAlign: TextAlign.start,
+                                              )
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+
+                                  // Make
+                                  IntrinsicHeight(
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment
+                                          .stretch,
+                                      children: <Widget>[
+                                        Expanded(
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                color: color_bg,
+                                                border: Border(
+                                                  top: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                  left: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text('Make',
+                                                textAlign: TextAlign.start,
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight
+                                                        .bold),
+
+                                              )
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                border: Border(
+                                                  top: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                _vindecoder.make != null
+                                                    ? _vindecoder.make
+                                                    : "",
+                                                textAlign: TextAlign.start,
+                                              )
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+
+                                  //Model
+                                  IntrinsicHeight(
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment
+                                          .stretch,
+                                      children: <Widget>[
+                                        Expanded(
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                color: color_bg,
+                                                border: Border(
+                                                  top: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                  left: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text('Model',
+                                                textAlign: TextAlign.start,
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight
+                                                        .bold),
+
+                                              )
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                border: Border(
+                                                  top: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                _vindecoder.model != null
+                                                    ? _vindecoder.model
+                                                    : "",
+                                                textAlign: TextAlign.start,
+                                              )
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+
+                                  // body
+                                  IntrinsicHeight(
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment
+                                          .stretch,
+                                      children: <Widget>[
+                                        Expanded(
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                color: color_bg,
+                                                border: Border(
+                                                  top: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                  left: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text('Body',
+                                                textAlign: TextAlign.start,
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight
+                                                        .bold),
+
+                                              )
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                border: Border(
+                                                  top: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                _vindecoder.body != null
+                                                    ? _vindecoder.body
+                                                    : "",
+                                                textAlign: TextAlign.start,
+                                              )
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+
+                                  // Trim
+                                  IntrinsicHeight(
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment
+                                          .stretch,
+                                      children: <Widget>[
+                                        Expanded(
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                color: color_bg,
+                                                border: Border(
+                                                  top: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                  left: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text('Trim',
+                                                textAlign: TextAlign.start,
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight
+                                                        .bold),
+
+                                              )
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 5),
+                                              decoration: BoxDecoration(
+                                                border: Border(
+                                                  top: BorderSide(width: 0.0,
+                                                      color: Colors.black54),
+                                                  right: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                  bottom: BorderSide(width: 1.0,
+                                                      color: Colors.black54),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                "",
+                                                textAlign: TextAlign.start,
+                                              )
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+
+                                ]
+                            )
+                        )
+                    )
+                );
+              }
             }
 
             widgets.add(
@@ -2972,11 +3021,77 @@ class _VindecoderViewState extends State<VindecoderView> {
               );
             }
 
+
+
+            ////// Box1 ///////////////
+            List<Widget> widgetsBox1 = List();
+
+            widgetsBox1.add(
+                Container(
+                    padding: EdgeInsets.only(left: 10.0, right: 10.0, top: 10.0),
+                    child: MaterialButton(
+                        height: 40,
+                        onPressed: (){
+                          Navigator.of(context).push(MaterialPageRoute(
+                              builder: (BuildContext context) =>
+                                  DetectionTextPage(1)
+                          ));
+                        },
+                        color: Color(0xFF027BFF),
+                        child: Text("Take Video",
+                          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                        )
+                    )
+                )
+            );
+
+            widgetsBox1.add(
+                Container(
+                    padding: EdgeInsets.only(left: 10.0, right: 10.0, top: 10.0),
+                    child: MaterialButton(
+                        height: 40,
+                        onPressed: (){
+                          Navigator.of(context).push(MaterialPageRoute(
+                              builder: (BuildContext context) =>
+                                  DetectionTextPage(0)
+                          ));
+                        },
+                        color: Color(0xFF027BFF),
+                        child: Text("Choose Video", style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                        )
+                    )
+                )
+            );
+
+
+
             widgets.add(
+                Container(
+                    margin: EdgeInsets.only(top: 10, bottom: 10, left: 10, right: 10),
+                    padding: EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                        border: Border.all(
+                            color: Colors.black
+                        )
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: widgetsBox1,
+                    )
+                )
+            );
+            //////////// Box1 End //////////////
+
+
+
+            /// Box2 //////
+            List<Widget> widgetsBox2 = List();
+            widgetsBox2.add(
               Container(
                   padding: EdgeInsets.only(top: 10, bottom: 0, left: 10, right: 10),
                   child: Text(
-                      "VIN or Dealer Part Number:",
+                      "VIN, Dealer or Aftermarket Part Number:",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                       )
@@ -2984,7 +3099,7 @@ class _VindecoderViewState extends State<VindecoderView> {
               ),
             );
 
-            widgets.add(
+            widgetsBox2.add(
               Container(
                 padding: EdgeInsets.only(top: 10, bottom: 0, left: 10, right: 10),
                 child: TextField(
@@ -3014,7 +3129,7 @@ class _VindecoderViewState extends State<VindecoderView> {
               ),
             );
 
-            widgets.add(
+            widgetsBox2.add(
               Container(
                   padding: EdgeInsets.only(top: 10, bottom: 0, left: 10, right: 10),
                   child: Text(
@@ -3026,18 +3141,16 @@ class _VindecoderViewState extends State<VindecoderView> {
               ),
             );
 
-
-
             List<DropdownMenuItem> _jobTypeMenuItems = new List();
             for(var i=0;i<jobTypeItems.length;i++){
               _jobTypeMenuItems.add(DropdownMenuItem(child: new Text(jobTypeItems[i].text, textAlign: TextAlign.center,), value: jobTypeItems[i].id) );
             }
 
-            widgets.add(
+            widgetsBox2.add(
                 SizedBox(height: 20.0)
             );
 
-            widgets.add(
+            widgetsBox2.add(
               Container(
                 padding: const EdgeInsets.only(left: 10.0, right: 10.0),
                 child:DropdownButton(
@@ -3087,11 +3200,11 @@ class _VindecoderViewState extends State<VindecoderView> {
                 }
               }
 
-              widgets.add(
+              widgetsBox2.add(
                   SizedBox(height: 20.0)
               );
 
-              widgets.add(
+              widgetsBox2.add(
                 Container(
                   padding: const EdgeInsets.only(left: 10.0, right: 10.0),
                   child:DropdownButton(
@@ -3110,11 +3223,11 @@ class _VindecoderViewState extends State<VindecoderView> {
               );
 
               if ( _selectedJobType == "2" && _selectedJobOption == "5" || _selectedJobType == "3" && _selectedJobOption == "3" ){
-                widgets.add(
+                widgetsBox2.add(
                     SizedBox(height: 20.0)
                 );
 
-                widgets.add(
+                widgetsBox2.add(
                     Container(
                       padding: const EdgeInsets.only(left: 10.0, right: 10.0),
                       child: TextField(
@@ -3138,7 +3251,7 @@ class _VindecoderViewState extends State<VindecoderView> {
             }
 
 
-            widgets.add(
+            widgetsBox2.add(
                 Container(
                   padding: const EdgeInsets.only(top: 10, left: 10.0, right: 10.0),
                   child: Row(
@@ -3161,25 +3274,27 @@ class _VindecoderViewState extends State<VindecoderView> {
                           }
                       ),
 
-                      Container(
-                        padding: const EdgeInsets.only(left: 10.0),
-                        child: MaterialButton(
-                            color: Color(0xFF027BFF),
-                            child: Padding(
-                                padding: EdgeInsets.all(5),
-                                child: Text(
-                                  "Reset",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                )
-                            ),
-                            onPressed: () {
-                              clickedReset();
-                            }
-                        ),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.only(left: 10.0),
+                          child: MaterialButton(
+                              color: Color(0xFF027BFF),
+                              child: Padding(
+                                  padding: EdgeInsets.all(5),
+                                  child: Text(
+                                    "Reset",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  )
+                              ),
+                              onPressed: () {
+                                clickedReset();
+                              }
+                          ),
+                        )
                       )
 
 
@@ -3187,6 +3302,31 @@ class _VindecoderViewState extends State<VindecoderView> {
                   ),
                 )
             );
+
+            widgets.add(
+              Container(
+                margin: EdgeInsets.only(top: 10, bottom: 10, left: 10, right: 10),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.black
+                  )
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: widgetsBox2,
+                )
+              )
+            );
+
+            //// Box2 END----/////
+
+
+
+
+
+
+
 
             return ListView(
               children: widgets

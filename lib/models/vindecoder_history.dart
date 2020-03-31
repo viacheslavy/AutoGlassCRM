@@ -32,6 +32,7 @@ class VindecoderHistory {
 }
 
 class VindecoderAnswer {
+  String id;
   String search;
   String when_run;
   String user;
@@ -39,19 +40,29 @@ class VindecoderAnswer {
   String note;
   String admin_name;
   String glass;
+  String glassId;
+  String glassOptionId;
+  String errorTime;
+  String errorUser;
 
   VindecoderAnswer({
+    this.id,
     this.search,
     this.when_run,
     this.user,
     this.part_number,
     this.note,
     this.admin_name,
-    this.glass
+    this.glass,
+    this.glassId,
+    this.glassOptionId,
+    this.errorTime,
+    this.errorUser
   });
 
   factory VindecoderAnswer.fromJson(Map<String, dynamic> json) {
     VindecoderAnswer response = VindecoderAnswer();
+    response.id = json['id'];
     response.search = json['search'];
     response.when_run = json['when_run'];
     response.user = json['user'];
@@ -59,6 +70,26 @@ class VindecoderAnswer {
     response.note = json['note'];
     response.admin_name = json['admin_name'];
     response.glass = json['glass'];
+    response.glassId = json['glassId'];
+    response.glassOptionId = json['glassOptionId'];
+
+    if ( response.glassId == null ){
+      response.glassId = "";
+    }
+
+    if ( response.glassOptionId == null ){
+      response.glassOptionId = "";
+    }
+
+    response.errorTime = null;
+    response.errorUser = null;
+    if ( json.containsKey("errorTime") ){
+      response.errorTime = json["errorTime"];
+    }
+
+    if ( json.containsKey("errorUser") ){
+      response.errorUser = json["errorUser"];
+    }
 
     return response;
   }

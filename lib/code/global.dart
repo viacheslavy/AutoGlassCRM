@@ -32,6 +32,7 @@ class Global {
   static String userID = "";
   static String userFirstName = "";
   static String userLastName = "";
+  static String country = "";
   static String vindecoderAuth = "";
   static String vindecoderOnly = "";
   static String currentUserName = "";
@@ -167,6 +168,7 @@ class Global {
     prefs.setString("domainPrefix", Global.domainPrefix);
     prefs.setString("vindecoderAuth", Global.vindecoderAuth);
     prefs.setString("vindecoderOnly", Global.vindecoderOnly);
+    prefs.setString("country", Global.country);
     prefs.setBool("rememberMe", isRemeberMe);
     prefs.setString("notificationstatus", Global.notificationStatus);
   }
@@ -185,6 +187,7 @@ class Global {
     Global.isRemeberMe = prefs.getBool("rememberMe") ?? false;
     Global.vindecoderAuth = prefs.getString("vindecoderAuth") ?? "";
     Global.vindecoderOnly = prefs.getString("vindecoderOnly") ?? "";
+    Global.country = prefs.getString("country") ?? "";
     Global.notificationStatus = prefs.getString("notificationstatus") ?? "";
   }
 
@@ -200,6 +203,7 @@ class Global {
     prefs.setString("UserAccess", "");
     prefs.setString("vindecoderAuth", "");
     prefs.setString("vindecoderOnly", "");
+    prefs.setString("country", "");
     prefs.setString("notificationstatus", "");
 
     Global.currentUserName = "";
@@ -211,6 +215,7 @@ class Global {
     Global.userAccess = "";
     Global.vindecoderAuth = "";
     Global.vindecoderOnly = "";
+    Global.country = "";
     Global.notificationStatus = "";
     Global.pushNotificationToken = "";
 
@@ -241,7 +246,7 @@ class Global {
     );
   }
 
-  static Future<ConfirmAction> asyncAlertDialogUploading(BuildContext context, String title, String bodyText) async {
+  static Future<ConfirmAction> asyncAlertDialogUploading(BuildContext context, String title, String bodyText, String from) async {
     return showDialog<ConfirmAction>(
       context: context,
       barrierDismissible: false, // user must tap button for close dialog!
@@ -253,9 +258,14 @@ class Global {
             FlatButton(
               child: const Text('OK'),
               onPressed: () {
-                Navigator.of(context).pop();
-
-                Global.homePageState.onSelectItem2(5);
+                if ( from == "vin_detect"){
+                  Navigator.of(context).pop();
+                  //Navigator.of(context).pop();
+                }
+                else{
+                  Navigator.of(context).pop();
+                  Global.homePageState.onSelectItem2(5);
+                }
               },
             ),
           ],

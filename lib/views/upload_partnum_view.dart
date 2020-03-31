@@ -6,10 +6,13 @@ import 'package:auto_glass_crm/code/global.dart';
 import 'package:auto_glass_crm/services/upload_service.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_native_image/flutter_native_image.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:multi_image_picker/multi_image_picker.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:path_provider/path_provider.dart';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class UploadView extends StatefulWidget {
@@ -36,6 +39,7 @@ class _UploadViewState extends State<UploadView> with AutomaticKeepAliveClientMi
   File videoFile;
   var thumbnailFilePath;
   bool _isUploading = false;
+  bool _isPartNumberValid = true;
 
   String videoUploadStatus = "";
   String photoUploadStatus = "";
@@ -51,6 +55,32 @@ class _UploadViewState extends State<UploadView> with AutomaticKeepAliveClientMi
   @override
   void initState() {
     super.initState();
+  }
+
+  Future<List> getImagesFromGallery() async{
+    int maxImages = 0;
+
+    maxImages = 4 - mPhotoData.length;
+
+    List resultList = List();
+    try {
+      resultList = resultList = await MultiImagePicker.pickImages(
+        maxImages: maxImages,
+        enableCamera: false,
+        cupertinoOptions: CupertinoOptions(takePhotoIcon: "chat"),
+        materialOptions: MaterialOptions(
+          actionBarColor: "#FF1E3C6B",
+          actionBarTitle: "Choose Photos",
+          allViewTitle: "All Photos",
+          useDetailsView: false,
+          selectCircleStrokeColor: "#000000",
+        ),
+      );
+    } on Exception catch (e) {
+      print(e);
+    }
+    print(resultList);
+    return resultList;
   }
 
   Future<File> getImage(bool fromCamera) async {
@@ -123,6 +153,46 @@ class _UploadViewState extends State<UploadView> with AutomaticKeepAliveClientMi
                     leading: Icon(Icons.photo_album),
                     title: Text('CHOOSE EXISTING'),
                     onTap: () {
+                      Navigator.of(context).pop();
+
+                      getImagesFromGallery().then((imageList) async{
+                        for(var i=0;i<imageList.length;i++) {
+                          if ( mPhotoData.length >= 4 ){
+                            continue;
+                          }
+
+                          Asset image = imageList[i];
+                          if (image != null) {
+                            int width = image.originalWidth;
+                            int height = image.originalHeight;
+
+                            if (image.originalWidth > image.originalHeight) {
+                              if (image.originalWidth > 800) {
+                                width = 800;
+                                height = width * image.originalHeight ~/
+                                    image.originalWidth;
+                              }
+                            }
+                            else {
+                              if (image.originalHeight > 800) {
+                                height = 800;
+                                width = height * image.originalWidth ~/
+                                    image.originalHeight;
+                              }
+                            }
+
+                            PhotoData _photo = new PhotoData();
+                            ByteData tmp = await image.getThumbByteData(width, height, quality: 70);
+                            _photo.photoBytes = tmp.buffer.asUint8List(0);
+                            mPhotoData.add(_photo);
+
+                            setState(() {});
+                          }
+                        }
+                      });
+
+
+                      /*
                       getImage(false).then((image) async {
                         Navigator.of(context).pop();
 
@@ -156,6 +226,7 @@ class _UploadViewState extends State<UploadView> with AutomaticKeepAliveClientMi
                           });
                         }
                       });
+                      */
                     },
                   ),
                 ),
@@ -287,6 +358,7 @@ class _UploadViewState extends State<UploadView> with AutomaticKeepAliveClientMi
     noteUploadStatus  = "";
     photoUploadStatus = "";
     videoUploadStatus = "";
+    _isPartNumberValid = true;
 
     mPhotoData.clear();
     _noteController.text = "";
@@ -318,6 +390,7 @@ class _UploadViewState extends State<UploadView> with AutomaticKeepAliveClientMi
             child: Text('Part Number:')
         )
     );
+
     widgets.add(
         Container(
             padding: EdgeInsets.only(left: 5, top: 5, right: 5, bottom: 5),
@@ -336,10 +409,40 @@ class _UploadViewState extends State<UploadView> with AutomaticKeepAliveClientMi
                 hintText: 'Part Number',
                 hintStyle: TextStyle(color: Colors.grey),
               ),
+              onChanged: (text){
+                if ( text.length == 0 ) {
+                  _isPartNumberValid = true;
+                }
+                else {
+                  final regexPartNum = RegExp(r'^[A-Za-z]{2}[0-9]{4,5}$');
+                  if (regexPartNum.hasMatch(text) == false) {
+                    _isPartNumberValid = false;
+                  }
+                  else {
+                    _isPartNumberValid = true;
+                  }
+                }
+
+                setState(() {
+                });
+              },
 
             )
         )
     );
+
+    if ( _isPartNumberValid == false ) {
+      widgets.add(
+          Container(
+              padding: EdgeInsets.only(left: 5.0, right: 5.0, top: 0.0),
+              alignment: Alignment.topLeft,
+              child: Text('Invalid Part Number.',
+                style: TextStyle(fontSize: 10.0, color: Colors.red),
+              )
+          )
+      );
+    }
+
     widgets.add(
         Container(
             padding: EdgeInsets.only(left: 5.0, right: 5.0, top: 0.0),
@@ -597,7 +700,9 @@ class _UploadViewState extends State<UploadView> with AutomaticKeepAliveClientMi
     photoUploadStatus = "";
     videoUploadStatus = "";
 
-    Global.asyncAlertDialogUploading(_scaffoldContext, "Upload in Progress", "You will get a notification once your upload has been finished");
+    Global.asyncAlertDialogUploading(_scaffoldContext,
+        "Upload in Progress", "You will get a notification once your upload has been finished",
+        "");
     setState(() {
     });
 

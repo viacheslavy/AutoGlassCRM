@@ -19,8 +19,8 @@ class VindecoderPartData{
   List<VindecoderAccessoryData> accessories;
 
   List<GalleryItem> photos;
-  List<PartNote> notes;
-  String video;
+  List<String> notes;
+  List<String> videos;
 
   int photo_count;
   int video_count;
@@ -37,6 +37,7 @@ class VindecoderData {
   String make;
   String model;
   String body;
+  String error;
 
   List<VindecoderPartData> parts;
   VindecoderData({
@@ -58,7 +59,9 @@ class VindecoderData {
     part.count = p['count'];
     part.trim = p['trim'];
     part.series = p['series'];
-
+    part.photo_count = 0;
+    part.video_count = 0;
+    part.note_count = 0;
 
     part.dealer_part_nums = List<String>();
     if ( p['dealer_part_nums'] != null && p['dealer_part_nums'] is List<dynamic> ) {
@@ -84,28 +87,17 @@ class VindecoderData {
       }
     }
 
-    part.photo_count = 0;
-    part.video_count = 0;
-    part.note_count = 0;
-    part.photos = List<GalleryItem>();
-    part.notes = List<PartNote>();
-    part.video = "";
-    if ( p.containsKey("photo_count") ){
-      part.photo_count = int.tryParse(p["photo_count"])??0;
-    }
-    if ( p.containsKey("video_count")){
-      part.video_count = int.tryParse(p["video_count"])??0;
-    }
-    if ( p.containsKey("note_count")){
-      part.note_count = int.tryParse(p["note_count"])??0;
-    }
 
-    /*
+    part.photos = List<GalleryItem>();
+    part.notes = List<String>();
+    part.videos = List<String>();
+
     if ( p.containsKey("photos") && p["photos"] is List<dynamic>) {
+      part.photo_count = p["photos"].length;
       for (var i = 0; i < p["photos"].length; i++) {
         var photo = p["photos"][i];
         part.photos.add(GalleryItem(
-            id: photo["id"],
+            id: i.toString(),
             isVideo: false,
             resource: Global.amazon_prefix + "/" + photo["url"]
         ));
@@ -114,16 +106,18 @@ class VindecoderData {
 
 
     if ( p.containsKey("notes") && p["notes"] is List<dynamic>) {
+      part.note_count = p["notes"].length;
       for (var i = 0; i < p["notes"].length; i++) {
-        PartNote note = PartNote.fromJson(p["notes"][i]);
-        part.notes.add(note);
+        part.notes.add(p["notes"][i]["text"]);
       }
     }
 
     if ( p.containsKey("videos") && p["videos"] is List<dynamic> && p["videos"].length > 0 ){
-      part.video = p["videos"][0]["url"];
+      part.video_count = p["videos"].length;
+      for (var i = 0; i < p["videos"].length; i++) {
+        part.videos.add(p["videos"][i]["url"]);
+      }
     }
-    */
 
     return part;
   }
@@ -136,6 +130,11 @@ class VindecoderData {
         model: json['model'],
         body: json['body']
     );
+    if ( json.containsKey("error") ){
+      response.error = json["error"];
+    }else{
+      response.error = null;
+    }
 
     response.parts = List<VindecoderPartData>();
     if ( json['parts'] is List<dynamic> ) {
@@ -154,6 +153,7 @@ class VindecoderData {
 
     return response;
   }
+
 }
 
 

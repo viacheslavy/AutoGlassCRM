@@ -6,9 +6,10 @@ class AuthenticationResponse {
   String last_name;
   String vindecoderAuth;
   String vindecoderOnly;
+  String country;
   String error;
 
-  AuthenticationResponse({this.id, this.token, this.access, this.first_name, this.last_name, this.vindecoderAuth, this.vindecoderOnly, this.error});
+  AuthenticationResponse({this.id, this.token, this.access, this.first_name, this.last_name, this.vindecoderAuth, this.vindecoderOnly, this.country, this.error});
 
   factory AuthenticationResponse.fromJson(Map<String, dynamic> json) {
     var response = AuthenticationResponse(
@@ -18,7 +19,8 @@ class AuthenticationResponse {
       first_name: json['first_name'],
       last_name: json['last_name'],
       vindecoderAuth: json['vindecoderAuth'],
-      vindecoderOnly: json['vindecoderOnly'].toString()
+      vindecoderOnly: json['vindecoderOnly'].toString(),
+      country: json['country']
     );
 
     return response;

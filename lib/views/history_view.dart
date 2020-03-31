@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:auto_glass_crm/code/global.dart';
 import 'package:auto_glass_crm/services/vindecoder_service.dart';
 import 'package:auto_glass_crm/models/vindecoder_history.dart';
@@ -29,6 +30,8 @@ class _HistoryViewState extends State<HistoryView> {
   bool _hasError = false;
   String _searchKey = "";
 
+  bool _isSendingHelpRequest = false;
+  bool _isAnswerDlgShow = false;
 
   VindecoderHistory searchData;
 
@@ -104,6 +107,52 @@ class _HistoryViewState extends State<HistoryView> {
 
   bool isGettingAnswer = false;
 
+
+  sendHelpRequestAgain(VindecoderAnswer _answerDetail, Text _requestButton) async{
+    if ( _isSendingHelpRequest ){
+      return;
+    }
+
+    _isSendingHelpRequest = true;
+    setState(() {});
+
+    if ( _isAnswerDlgShow ) {
+      _isAnswerDlgShow = false;
+      Navigator.of(context).pop(ConfirmAction.CANCEL);
+    }
+
+
+    var snackBarLoading = SnackBar(
+      duration: Duration(seconds: 300),
+      content: new Row(
+        children: <Widget>[
+          new CircularProgressIndicator(),
+          new Text("  Loading...")
+        ],
+      ),
+    );
+
+    Scaffold.of(context).showSnackBar(snackBarLoading);
+    Map<String, dynamic> ret = await VindecoderService.checkAnswer(_answerDetail.id);
+    Scaffold.of(context).hideCurrentSnackBar();
+
+    if ( ret != null && ret.containsKey("success") && ret["success"] == 1){
+      showAnswer(_answerDetail.id);
+    }
+    else{
+      var err = "Please try again.";
+      if ( ret != null && ret.containsKey("message")){
+        err = ret["message"];
+      }
+      final snackBar = SnackBar(
+        content: Text(err),
+      );
+      Scaffold.of(context).showSnackBar(snackBar);
+    }
+    _isSendingHelpRequest = false;
+    setState(() {});
+  }
+
   showAnswer(_id) async{
     if ( isGettingAnswer ){
       return;
@@ -128,17 +177,99 @@ class _HistoryViewState extends State<HistoryView> {
     );
 
     Scaffold.of(context).showSnackBar(snackBarLoading);
+
     VindecoderAnswer ret = await VindecoderService.getVindecoderAnswer(_id.toString());
     Scaffold.of(context).hideCurrentSnackBar();
 
     if ( ret != null ){
+      Container statusContainer = Container();
+      if ( ret.errorTime != null && ret.errorUser != null ){
+        statusContainer = Container(
+            padding: EdgeInsets.only(top: 5, bottom: 0, left: 0, right: 0),
+            child: Container(
+                padding: EdgeInsets.only(top: 5, left: 5, right: 5, bottom: 5),
+                color: Color(0xFFFF5964),
+                child: Column(
+                    children: <Widget>[
+                      Center(
+                          child: Text(
+                              "This answer was marked wrong and resubmitted at " + ret.errorTime + " by " + ret.errorUser + ". It is currently being reviewed.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 10.0,
+                                color: Colors.white
+                              )
+                          )
+                      ),
+                    ]
+                )
+            )
+        );
+      }
+      else{
+        Text requestButton = Text(
+          _isSendingHelpRequest ?
+          "Sending..." :
+          "Tell me the exact part number again",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF027BFF),
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+
+        statusContainer = Container(
+            padding: EdgeInsets.only(top: 10, bottom: 0, left: 0, right: 0),
+            child: Container(
+                padding: EdgeInsets.all(10),
+                color: Color(0xffdae2ed),
+                child: Column(
+                  children: <Widget>[
+                    Center(
+                        child: Text(
+                            "Want us to double-check our answer? If you are not 100 percent comfortable with the response you received, let us review it for you. Click the button below to have us double-check our response.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 10.0
+                            )
+                        )
+                    ),
+                    SizedBox(height: 10,),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: OutlineButton(
+                              color: Colors.white,
+                              borderSide: BorderSide(
+                                  color: Color(0xFF027BFF)
+                              ),
+                              child: Padding(
+                                  padding: EdgeInsets.only(top: 0, bottom: 0),
+                                  child: requestButton
+                              ),
+                              onPressed: () {
+                                sendHelpRequestAgain(ret, requestButton);
+                              }),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+            )
+        );
+      }
+
+      var height = MediaQuery.of(context).size.height;
+      var width = MediaQuery.of(context).size.width;
+
       showDialog<ConfirmAction>(
         context: context,
         barrierDismissible: false, // user must tap button for close dialog!
         builder: (BuildContext context) {
           Container mContainer = new Container(
               child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  padding: EdgeInsets.symmetric(horizontal: 0, vertical: 0),
                   child: Column(
                       children: <Widget>[
                         /* VIN */
@@ -542,25 +673,37 @@ class _HistoryViewState extends State<HistoryView> {
                             ],
                           ),
                         ),
+
+                        statusContainer
                       ]
                   )
               )
           );
 
-          return AlertDialog(
-            contentPadding: EdgeInsets.all(5.0),
-            title: Text('Answer Detail'),
-            content: SingleChildScrollView(
-              child: mContainer
-            ),
-            actions: <Widget>[
-              FlatButton(
-                child: const Text('OK'),
-                onPressed: () {
-                  Navigator.of(context).pop(ConfirmAction.CANCEL);
-                },
-              )
-            ],
+          _isAnswerDlgShow = true;
+
+          return StatefulBuilder(
+            builder: (context, setState){
+              return WillPopScope(
+                  onWillPop: () async => false,
+                  child: AlertDialog(
+                    contentPadding: EdgeInsets.all(5.0),
+                    title: Text('Answer Detail'),
+                    content: SingleChildScrollView(
+                        child: mContainer
+                    ),
+                    actions: <Widget>[
+                      FlatButton(
+                        child: const Text('OK'),
+                        onPressed: () {
+                          _isAnswerDlgShow = false;
+                          Navigator.of(context).pop(ConfirmAction.CANCEL);
+                        },
+                      )
+                    ],
+                  )
+              );
+            }
           );
         },
       );

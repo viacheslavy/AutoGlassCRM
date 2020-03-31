@@ -23,6 +23,10 @@ if (keystorePropertiesFile.exists()) {
 android {
     compileSdkVersion 28
 
+    aaptOptions {
+        noCompress "tflite"
+    }
+
     lintOptions {
         disable 'InvalidPackage'
     }
@@ -31,8 +35,8 @@ android {
         applicationId "com.autoglasscrm2"
         minSdkVersion 21
         targetSdkVersion 28
-        versionCode 132
-        versionName "1.82"
+        versionCode 134
+        versionName "1.84"
         multiDexEnabled true
         // testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

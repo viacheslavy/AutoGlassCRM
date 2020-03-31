@@ -7,6 +7,27 @@ import 'package:servicestack/client.dart';
 import 'package:http/http.dart' as http;
 
 class AuthenticationService {
+  static Future<String> getPrefixByEmail(String email) async{
+    var url = Global.domainFirst + "admin.autoglasscrm.com/account/prefixfromemail?email=${Uri.encodeComponent(email)}";
+    print(url);
+    try {
+      JsonServiceClient jsonClient = JsonServiceClient();
+      jsonClient.headers.clear();
+
+      Map<String, String> h = { "APP_AUTH_ID" : "app-VDCRM-2019", "APP_AUTH_KEY" : 'n>aP=:k}Vm*GT--9zVB@\$3EQ|+Ayu<Y^r-_jf-zLjg?w*)y:t6zm&@Wh&6' };
+      jsonClient.headers.addAll(h);
+      var res = await jsonClient.getAs(url);
+      print(res);
+
+      return res;
+    } on WebServiceException catch (e) {
+      print("getPrefixByEmail error1=" + e.message.toString());
+      return null;
+    } catch (e) {
+      print("getPrefixByEmail error2=" +  e.toString());
+      return null;
+    }
+  }
   static Future<AuthenticationResponse> authenticate(String domainPrefix, String email, String password) async {
     var url = Global.domainFirst + domainPrefix + Global.domainSurfix + "/login/appauth?email=${Uri.encodeComponent(email)}&password=${Uri.encodeComponent(password)}";
     print(url);

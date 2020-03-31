@@ -47,7 +47,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   TextEditingController _menuSearchQuery;
   String menuSearchQuery = "Search query";
 
-  int _selectedDrawerIndex = 0;
+  int _selectedDrawerIndex = 3;
 
   FirebaseMessaging _fireBaseMessaging = new FirebaseMessaging();
   FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
@@ -66,6 +66,10 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    if ( Global.userAccess == "12" ) {
+      _selectedDrawerIndex = 6;
+    }
 
     Global.homePageState = this;
 
@@ -960,7 +964,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: horizontalTitleAlignment,
           children: <Widget>[
-            const Text('Vindecoder Search', style: TextStyle(color:Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text('Vin Decoder Search', style: TextStyle(color:Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
       ),
@@ -1265,7 +1269,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       icon: Icon(Icons.event, color: color_text),
                     ),
                     Padding(padding: EdgeInsets.only(left: 0.0)),
-                    Text("Vindecoder",
+                    Text("Vin Decoder",
                         style: TextStyle(
                             color: color_text,
                             fontWeight: FontWeight.bold
@@ -1404,19 +1408,25 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
     );
 
-    if ( Global.vindecoderOnly == "0" ) {
-      menus.add(menuJobs);
-      if (Global.userAccess != "4") {
-        menus.add(menuInstallers);
-        menus.add(menuDistributors);
+
+    if ( Global.userAccess != "12" ) {
+      if (Global.vindecoderOnly == "0") {
+        menus.add(menuJobs);
+        if (Global.userAccess != "4") {
+          menus.add(menuInstallers);
+          menus.add(menuDistributors);
+        }
+      }
+
+      menus.add(menuVindecoder);
+      menus.add(menuHistory);
+      // menus.add(Divider(color: color_divider, height: 2));
+
+      if (Global.vindecoderOnly == "0") {
+        menus.add(menuPartSearch);
       }
     }
-
-    menus.add(menuVindecoder);
-    menus.add(menuHistory);
-    // menus.add(Divider(color: color_divider, height: 2));
-
-    if ( Global.vindecoderOnly == "0" ) {
+    else{
       menus.add(menuPartSearch);
     }
 
